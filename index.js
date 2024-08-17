@@ -14,7 +14,8 @@ const corsOptions = {
   origin: [
     "https://port-0-test-back-lxlts66g89582f3b.sel5.cloudtype.app",
     "https://web-math-front-lxlts66g89582f3b.sel5.cloudtype.app",
-    "https://web-math-front-backup-lxlts66g89582f3b.sel5.cloudtype.app/",
+    "https://web-math-front-backup-lxlts66g89582f3b.sel5.cloudtype.app",
+    "https://port-0-math2-back-lxlts66g89582f3b.sel5.cloudtype.app",
     "http://127.0.0.1:5500",
     "http://localhost:3000",
   ],
