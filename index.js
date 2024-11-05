@@ -2,6 +2,8 @@ import express from 'express';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 dotenv.config();
 
@@ -29,14 +31,57 @@ app.use(express.json());
 
 app.options('*', cors(corsOptions));
 
+async function searchDuckDuckGo(query) {
+  try {
+    console.log('Searching for:', query);
+    const response = await axios.get('https://lite.duckduckgo.com/lite/', {
+      params: {
+        q: query
+      }
+    });
+
+    console.log('Raw HTML received:', response.data.substring(0, 200));
+
+    const $ = cheerio.load(response.data);
+    const searchResults = [];
+
+    $('table.result-table').each((i, element) => {
+      const title = $(element).find('td.result-title').text().trim();
+      const snippet = $(element).find('td.result-snippet').text().trim();
+      if (title && snippet) {
+        searchResults.push({
+          title: title,
+          snippet: snippet
+        });
+      }
+    });
+
+    console.log('Parsed search results:', searchResults);
+
+    return searchResults.slice(0, 3);
+  } catch (error) {
+    console.error('Search error:', error);
+    return [];
+  }
+}
+
 app.post('/search-product', async (req, res) => {
-  const { product_name, product_description, product_price } = req.body;
+  const { product_name } = req.body;
+
+  console.log('Received request for product:', product_name);
 
   try {
+    const searchResults = await searchDuckDuckGo(product_name);
+    console.log('Search results count:', searchResults.length);
+
+    const searchContext = searchResults
+      .map(result => `${result.title}\n${result.snippet}`)
+      .join('\n\n');
+
     const assistant = await openai.beta.assistants.create({
       name: "리뷰 메이커",
-      instructions: "제품 정보를 바탕으로 상세하고 유용한 리뷰를 작성합니다.",
-      model: "gpt-4o-mini"  // 또는 사용 가능한 최신 모델
+      instructions: "검색 결과를 바탕으로 상세하고 유용한 리뷰를 작성합니다.",
+      model: "gpt-4o-mini"
     });
 
     const thread = await openai.beta.threads.create();
@@ -45,17 +90,19 @@ app.post('/search-product', async (req, res) => {
       thread.id,
       {
         role: "user",
-        content: `다음 제품에 대한 상세하고 유용한 리뷰를 작성해주세요:
-        제품명: ${product_name}
-        제품 설명: ${product_description}
-        가격: ${product_price}원
+        content: `다음 제품에 대한 상세하고 유용한 리뷰를 작성해주세요 말투는 친근하게 작성. 중간중간 오타가 있을 수 있습니다. 
         
-        리뷰에는 다음 내용을 포함해주세요:
+        
+        제품명: ${product_name}
+
+        검색을 통해 수집된 정보:
+        ${searchContext}
+        
+        위 정보들을 종합하여 다음 내용을 포함한 리뷰를 작성해주세요:
         1. 제품의 주요 특징
-        2. 가격 대비 가치
-        3. 장단점
-        4. 사용 경험 예상
-        5. 구매 추천 여부`
+        2. 장단점
+        3. 구매 추천 여부
+        4. 사용 후기`
       }
     );
 
@@ -79,14 +126,20 @@ app.post('/search-product', async (req, res) => {
     const responseMessage = messages.data.find(message => message.role === 'assistant');
     
     if (responseMessage) {
-      res.status(200).json({ response: responseMessage.content[0].text.value });
+      res.status(200).json({ 
+        response: responseMessage.content[0].text.value,
+        searchResults: searchResults 
+      });
     } else {
-      res.status(404).json({ error: '응답을 찾을 수 없습니다.' });
+      res.status(404).json({ error: '응답 찾을 수 없습니다.' });
     }
 
   } catch (error) {
     console.error(error);
-    res.status(500).send('An error occurred');
+    res.status(500).json({ 
+      error: 'An error occurred',
+      details: error.message 
+    });
   }
 });
 
