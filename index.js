@@ -90,7 +90,7 @@ app.post('/search-product', async (req, res) => {
       thread.id,
       {
         role: "user",
-        content: `다음 제품에 대한 상세하고 유용한 리뷰를 작성해주세요 말투는 친근하게 작성. 중간중간 오타가 있을 수 있습니다. 
+        content: `다음 제품에 대한 상세한 리뷰를 작성. 중간중간 오타를 섞어쓰고, 할게용, 그렇더라구요 등의 말투를 사용.
         
         
         제품명: ${product_name}
